@@ -1,0 +1,66 @@
+name: Publish And Deploy Demo
+# 当只有提交标签为 v* 的才会触发自动部署
+# 例如：
+# git tag v0.1.0
+# git push origin v0.1.0
+on:
+  push:
+    tags:
+      - 'v*'
+# 执行的工作
+jobs:
+  # 构建和部署
+  build-and-deploy:
+    # 运行环境
+    runs-on: ubuntu-latest
+    steps:
+    # 下载源码
+    - name: Checkout
+      uses: actions/checkout@main
+    # 打包构建
+    - name: Build
+      uses: actions/setup-node@main
+    - run: npm install
+    - run: npm run build
+    # 将 .nuxt static 等文件做成一个 release.tgz 压缩包
+    - run: tar -zcvf release.tgz .nuxt static nuxt.config.js pm2.config.json package.json package-lock.json
+    # 发布 Release
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@main
+      env:
+        # Settings -> Secrets -> New Secrets 去新建 TOKEN 即可
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+    # 上传构建结果到 Release
+    - name: Upload Release Asset
+      id: upload-release-asset
+      uses: actions/upload-release-asset@main
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release.tgz
+        asset_name: release.tgz
+        asset_content_type: application/x-tgz
+    # 部署到服务器
+    - name: Deploy
+      uses: appleboy/ssh-action@main
+      with:
+        # secrets.HOST、secrets.USERNAME 具体项目服务器地址、账号、密码
+        # Settings -> Secrets -> New Secrets 去新建 HOST、USERNAME、PASSWORD、TOKEN 即可
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        password: ${{ secrets.PASSWORD }}
+        port: ${{ secrets.PORT }}
+        # cd /root/realworld-nuxtjs 是服务器端项目目录，wget 是仓库地址
+        script: |
+          cd /www/app
+          wget https://github.com/amanisky/nuxt-realworld/releases/latest/download/release.tgz -O release.tgz
+          tar zxvf release.tgz
+          npm install --production
+          pm2 reload pm2.config.json
