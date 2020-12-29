@@ -17,4 +17,11 @@ export default ({ store }) => {
   }, function (error) {
     return Promise.reject(error)
   })
+
+  // 响应拦截器
+  request.interceptors.response.use(response => {
+    return response
+  }, error => {
+    return Promise.reject(error)
+  })
 }

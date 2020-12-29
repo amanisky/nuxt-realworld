@@ -6,13 +6,14 @@
       <div class="col-md-6 offset-md-3 col-xs-12">
         <h1 class="text-xs-center">{{ isLoginPage ? 'Sign in' : 'Sign up'}}</h1>
         <p class="text-xs-center">
-          <!-- <a href="">{{ isLoginPage ? 'Need an account?' : 'Have an account?'}}</a> -->
           <nuxt-link to="/register" v-if="isLoginPage">Need an account?</nuxt-link>
           <nuxt-link to="/login" v-else>Have an account?</nuxt-link>
         </p>
 
         <ul class="error-messages">
-          <li>That email is already taken</li>
+          <template v-for="(msgs, field) in errors">
+            <li v-for="(msg, index) in msgs" :key="index + Math.random()">{{ field }} {{ msg }}</li>
+          </template>
         </ul>
 
         <form @submit.prevent="onSubmit">
@@ -51,7 +52,8 @@ export default {
         username: '',
         email: '',
         password: ''
-      }
+      },
+      errors: {}
     }
   },
   computed: {
@@ -59,20 +61,26 @@ export default {
       return this.$route.name === 'login'
     }
   },
+  watchQuery: ['key'],
   methods: {
     async onSubmit () {
-      let result
-      if (this.isLoginPage) {
-        result = await login({ user: this.user })
-      } else {
-        result = await register({ user: this.user })
+      try {
+        let result
+        if (this.isLoginPage) {
+          result = await login({ user: this.user })
+        } else {
+          result = await register({ user: this.user })
+        }
+        // 1、将用户信息保存到容器
+        this.$store.commit('setUser', result.data.user)
+        // 2、防止刷新丢失数据，需要把数据持久化
+        Cookie.set('user', result.data.user)
+        // 3、跳转到首页
+        this.$router.push({ name: 'home' })
+      } catch (err) {
+        console.log(err.response.data.errors)
+        this.errors = err.response.data.errors
       }
-      // 1、将用户信息保存到容器
-      this.$store.commit('setUser', result.data.user)
-      // 2、防止刷新丢失数据，需要把数据持久化
-      Cookie.set('user', result.data.user)
-      // 3、跳转到首页
-      this.$router.push({ name: 'home' })
     }
   }
 }
